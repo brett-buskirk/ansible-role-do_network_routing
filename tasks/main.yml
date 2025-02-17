@@ -1,0 +1,41 @@
+# ref: tasks/main.yml
+
+---
+# Retrieve the gateway's public IP address from the metadata server.
+- name: Get the metadata endpoint
+  shell: curl -s http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/gateway
+  register: metadata_endpoint
+
+# Check if a route to the metadata endpoint already exists.
+- name: Check if metadata endpoint route exists
+  command: ip route show 169.254.169.254
+  register: route_check
+  changed_when: false
+
+# Add a route to the metadata endpoint if it doesn't exist.
+- name: Create the metadata endpoint for {{ metadata_endpoint.stdout }}
+  shell: ip route add 169.254.169.254 via {{ metadata_endpoint.stdout }} dev eth0
+  when: route_check.stdout == ""
+
+# Change the default gateway to the specified private IP address.
+- name: Add gateway IP as a route
+  shell: ip route change default via {{ gateway_private_ip }}
+
+# Remove the default route from the public network interface (eth0) configuration in netplan.
+- name: Modify netplan | remove route from public eth0
+  replace:
+    path: /etc/netplan/50-cloud-init.yaml
+    regexp: '            -   to: 0.0.0.0/0\n                via: .*'
+    replace: ''
+
+# Add a route to the internal network interface (eth1) configuration in netplan, using the specified gateway IP.
+- name: Modify netplan | add route to internal eth1
+  replace:
+    path: /etc/netplan/50-cloud-init.yaml
+    regexp: '                search: \[\]\n            set-name: eth1'
+    replace: '                search: []\n            routes:\n              - to: 0.0.0.0/0\n                via: {{ gateway_private_ip }}\n            set-name: eth1'
+
+# Apply the netplan configuration changes and enable debug output.
+- name: Check the netplan
+  shell: netplan apply -debug
+  
