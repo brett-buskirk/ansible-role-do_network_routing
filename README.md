@@ -42,7 +42,10 @@ Or you can include it in your requirements.yml file:
 
 ```yaml
 ---
+roles:
   - name: brett-buskirk.do_network_routing
+    src: https://github.com/brett-buskirk/ansible-role-do_network_routing
+    version: main # or a specific tag
 ```
 
 Then install it using:
